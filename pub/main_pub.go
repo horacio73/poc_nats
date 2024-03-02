@@ -32,7 +32,8 @@ func loadConfig(cfgPtr *string) {
 
 	conf, _ := toml.LoadFile(*cfgPtr)
 
-	if endpointAPIServer, ok := conf.Get("api-server.endpoint").(string); ok {
+	var ok bool
+	if endpointAPIServer, ok = conf.Get("api-server.endpoint").(string); ok {
 		endpointAPIServer = strings.TrimSpace(endpointAPIServer)
 	} else {
 		log.Fatal("Erro na leitura do arquivo de configuração, 'api-server.endpoint' não encontrado.\n" + err.Error())
@@ -52,7 +53,9 @@ func main() {
 	debugConf = util.DebugConfig
 
 	// conectar com banco de dados
-	dbConn = util.ConnectDB(util.MysqlConfig.Endpoint + "/" + util.MysqlConfig.Schema)
+	dbConn = util.ConnectDB(util.MysqlConfig.Username, util.MysqlConfig.Password,
+		util.MysqlConfig.Endpoint, util.MysqlConfig.Schema)
+
 	defer util.CloseDB(dbConn)
 
 	// conectar com NATS
@@ -83,5 +86,9 @@ func main() {
 
 	// Endpoint para receber os dados a serem persistidos no stream
 	wsFiber.Get(endpointAPIServer, processStreamData)
+
+	if errListen := wsFiber.Listen(":80"); errListen != nil {
+		log.Println("A porta 80 já está em uso ou não há portas disponíveis no servidor.")
+	}
 
 }

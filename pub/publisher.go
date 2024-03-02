@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"gaudiumsoftware/nats/util"
 	"log"
 	"strconv"
 	"time"
@@ -63,7 +64,7 @@ func processStreamData(c *fiber.Ctx) error {
 // initStream configura o stream no NATS
 func initStream() {
 	if jstream.js, err = jetstream.New(natsConn); err != nil {
-		log.Fatal("initStreamService - Erro ao instanciar stream")
+		log.Fatal("initStreamService - Erro ao instanciar objeto stream")
 	}
 
 	var maxAge time.Duration
@@ -84,7 +85,7 @@ func initStream() {
 		Discard: jetstream.DiscardNew,
 		//		DiscardNewPerSubject,
 		MaxAge:            maxAge,
-		MaxMsgsPerSubject: 1,
+		MaxMsgsPerSubject: -1,
 		//		MaxMsgSize: -1  //default
 		Replicas: int(natsConf.Replica),
 		NoAck:    false,
@@ -108,6 +109,7 @@ func initStream() {
 	}
 
 	jstream.ctx, jstream.cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	defer jstream.cancel()
 
 	if jstream.stream, err = jstream.js.CreateOrUpdateStream(jstream.ctx, jstream.jsCFG); err != nil {
 		log.Fatal("initStreamService - Erro ao criar stream")
@@ -118,22 +120,29 @@ func initStream() {
 // arquivo de configuração
 func publishEvents(cEvent *event.Event) error {
 	var (
-		opts       jetstream.PublishOpt
+		//		opts       jetstream.PublishOpt
 		err        error = nil
 		deadLetter error = nil
 		ack        *jetstream.PubAck
 		bMsg       []byte
 	)
 
+	jstream.ctx, jstream.cancel = context.WithTimeout(context.Background(), 10*time.Second)
 	defer jstream.cancel()
+
 	for _, pub := range natsConf.PubSubSubjects {
 		cEvent.SetSubject(pub)
 		if bMsg, err = cEvent.MarshalJSON(); err == nil {
-			ack, err = jstream.js.Publish(jstream.ctx, pub, bMsg, opts)
-			// debug
-			if debugConf.Debug {
-				log.Printf("%v /n %v /n/n", ack, opts)
+			if ack, err = jstream.js.Publish(jstream.ctx, pub, bMsg); err != nil {
+				log.Printf("Erro ao publicar:\n%v", err)
+			} else {
+				// debug
+				if debugConf.Debug {
+					log.Printf("%v \n\n", ack) //, opts)
+					util.PrintStreamState(jstream.ctx, jstream.stream)
+				}
 			}
+
 		} else {
 			log.Printf("ERR - Dead Letter: %v /n", err)
 			deadLetter = err
@@ -151,6 +160,7 @@ func pubStreamService() {
 
 		id := fmt.Sprint(postPosicaoDB(&msg))
 
+		msg.Nome = getRandomName()
 		go postTaxistaDB(&msg) //upsert na tabela taxista em paralelo
 
 		// criar um repositório para empacotar a mensagem no formato "cloud event"
@@ -178,7 +188,7 @@ func postPosicaoDB(msg *PosicaoType) int64 {
 	dao := PosicaoDAO{DB: dbConn}
 
 	if id, err = dao.Insert(msg); err != nil {
-		log.Fatal("publisher - postPosicaoDB - Erro ao gravar na tabela")
+		log.Fatal("publisher - postPosicaoDB - Erro ao gravar na tabela\n" + err.Error())
 	}
 
 	return id
@@ -190,14 +200,14 @@ func postTaxistaDB(msg *PosicaoType) {
 	dao := TaxistaDAO{DB: dbConn}
 	msgTaxista := TaxistaType{
 		ID:              msg.TaxistaID,
-		Nome:            getRandomName(),
+		Nome:            msg.Nome,
 		Lat:             msg.Lat,
 		Lng:             msg.Lng,
 		TraceID:         msg.TraceID,
 		DataHoraPosicao: msg.DataHoraPosicao,
 	}
 	if _, err := dao.Upsert(&msgTaxista); err != nil {
-		log.Fatal("publisher - postTaxistaDB - Erro ao gravar na tabela")
+		log.Fatal("publisher - postTaxistaDB - Erro ao gravar na tabela\n" + err.Error())
 	}
 }
 

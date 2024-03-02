@@ -11,6 +11,7 @@ type PosicaoType struct {
 	Lat             float64   `json:"lat"`
 	Lng             float64   `json:"lng"`
 	TaxistaID       int64     `json:"taxista_id"`
+	Nome            string    `json:"nome"`
 	Carregando      int       `json:"carregando"`
 	Acu             float64   `json:"acu"`
 	Token           string    `json:"token"`
@@ -20,7 +21,7 @@ type PosicaoType struct {
 	DataHoraPosicao time.Time `json:"tempo_pos"`
 	Source          string    `json:"-"`
 	TraceID         string    `json:"trace_id"`
-	IP              string    `json:"-"`
+	IP              string    `json:"ip"`
 }
 
 // TaxistaType contém dados de identificação do motorista

@@ -3,7 +3,9 @@
 package util
 
 import (
+	"log"
 	"strings"
+	"time"
 
 	"github.com/pelletier/go-toml"
 )
@@ -11,20 +13,29 @@ import (
 // CCConfigPath define o caminho onde está o arquivo de configuração
 const CCConfigPath = "/etc/nats_pub.conf"
 
+// DebugType indica se o flag de debug está ligado ou não
 type DebugType struct {
 	Debug bool
 }
 
+// NatsConfType tem a estrutura da configuração do NATS, pub e sub
 type NatsConfType struct {
-	Endpoint       string
-	Event          string
-	StreamSubjects []string
-	PubSubSubjects []string
-	Timeout        int
-	MaxAge         int
-	Replica        int
+	Endpoint        string
+	ConsumerName    string
+	Event           string
+	StreamSubjects  []string
+	PubSubSubjects  []string
+	MaxAge          int
+	Replica         int
+	SubDeliveryTime *time.Time
+	AckWait         time.Duration
+	MaxAckPending   int
+	Timeout         time.Duration
+	Batch           int
+	DoubleAck       bool
 }
 
+// MysqlConfType tem a estrutura da configuração do banco de dados
 type MysqlConfType struct {
 	Endpoint        string
 	Schema          string
@@ -41,6 +52,7 @@ var NatsConfig NatsConfType
 // MysqlConfig contém a parametrização referente ao banco de dados
 var MysqlConfig MysqlConfType
 
+// DebugConfig contém a parametrização referente ao flag de debug
 var DebugConfig DebugType
 
 // LoadConfig interpreta todo o arquivo de configuração e grava os dados
@@ -55,11 +67,43 @@ func LoadConfig(configFileName string) error {
 
 	NatsConfig.Endpoint = loadSafeStringNode(conf.Get("nats.endpoint"))
 	NatsConfig.Event = loadSafeStringNode(conf.Get("nats.event"))
+	NatsConfig.ConsumerName = loadSafeStringNode(conf.Get("nats.consumer_name"))
 	NatsConfig.StreamSubjects = loadSafeStringArrayNode(conf.GetArray("nats.stream_subjects"))
 	NatsConfig.PubSubSubjects = loadSafeStringArrayNode(conf.GetArray("nats.pubsub_subjects"))
-	NatsConfig.Timeout = int(loadSafeInt64Node(conf.Get("nats.timeout")))
 	NatsConfig.MaxAge = int(loadSafeInt64Node(conf.Get("nats.maxage")))
 	NatsConfig.Replica = int(loadSafeInt64Node(conf.Get("nats.replica")))
+	NatsConfig.Batch = int(loadSafeInt64Node(conf.Get("nats.batch")))
+	NatsConfig.DoubleAck = loadSafeBoolNode(conf.Get("nats.double_ack"))
+
+	strtime := loadSafeStringNode(conf.Get("nats.sub_deliverytime"))
+	if len(strtime) > 0 {
+		if t, err := time.Parse(time.DateTime, strtime); err != nil {
+			log.Println("Invalid sub_deliverytime, assuming 'all'")
+			NatsConfig.SubDeliveryTime = nil
+		} else {
+			NatsConfig.SubDeliveryTime = &t
+		}
+	}
+
+	strtime = loadSafeStringNode(conf.Get("nats.timeout"))
+	if len(strtime) > 0 {
+		if t, err := time.ParseDuration(strtime); err != nil {
+			log.Println("Invalid timeout, assuming 5s")
+			NatsConfig.Timeout = 5 * time.Second
+		} else {
+			NatsConfig.Timeout = t
+		}
+	}
+
+	strtime = loadSafeStringNode(conf.Get("nats.ack_wait"))
+	if len(strtime) > 0 {
+		if t, err := time.ParseDuration(strtime); err != nil {
+			log.Println("Invalid ack_wait, assuming 30s")
+			NatsConfig.AckWait = 30 * time.Second
+		} else {
+			NatsConfig.AckWait = t
+		}
+	}
 
 	MysqlConfig.Endpoint = loadSafeStringNode(conf.Get("mysql.endpoint"))
 	MysqlConfig.Schema = loadSafeStringNode(conf.Get("mysql.schema"))
