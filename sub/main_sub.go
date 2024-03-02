@@ -8,6 +8,8 @@ import (
 	"flag"
 	"gaudiumsoftware/nats/util"
 	"log"
+	"math/rand"
+	"time"
 
 	"github.com/nats-io/nats.go"
 )
@@ -36,6 +38,7 @@ func main() {
 
 	loadConfig(cfgPtr)
 
+	rand.Seed(time.Now().UnixNano())
 	dbConf = util.MysqlConfig
 	natsConf = util.NatsConfig
 	debugConf = util.DebugConfig

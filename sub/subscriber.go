@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
@@ -31,7 +33,8 @@ func readStreamData() {
 		if msgs, err := jstream.consumer.Fetch(natsConf.Batch, jetstream.FetchMaxWait(natsConf.Timeout)); err == nil {
 			for msg := range msgs.Messages() {
 				if err = processStreamService(msg); err != nil {
-					msg.NakWithDelay(time.Minute) //pede ao servidor para refazer a entrega daqui a 1 minuto
+					// pede ao broker para refazer a entrega após o intervalo parametrizado
+					msg.NakWithDelay(natsConf.DelayRedelivery)
 					if debugConf.Debug {
 						fmt.Println(string(msg.Data()) + "\n" + err.Error() + "\n\n")
 					}
@@ -70,9 +73,14 @@ func readStreamData() {
 // DataType recupera os dados de negócio do evento.
 type DataType struct {
 	Posicao PosicaoType `json:"data"`
+	Source  string      `json:"source"`
 }
 
 func processStreamService(msg jetstream.Msg) error {
+	if err = errorSimulation(); err != nil {
+		return err
+	}
+
 	data := DataType{}
 
 	if err = json.Unmarshal(msg.Data(), &data); err != nil {
@@ -80,11 +88,22 @@ func processStreamService(msg jetstream.Msg) error {
 		return err
 	}
 
+	data.Posicao.Source = data.Source
 	if err = postPosicaoDB(&data.Posicao); err != nil {
 		return err
 	}
 
 	return postTaxistaDB(&data.Posicao)
+}
+
+func errorSimulation() error {
+	if natsConf.ErrorRate <= 0 {
+		return nil
+	}
+	if rand.Intn(100) <= natsConf.ErrorRate {
+		return errors.New("Erro simulado no consumo")
+	}
+	return nil
 }
 
 // postPosicaoDB persiste dados na tabela de posição
@@ -147,8 +166,8 @@ func initStream() {
 		ReplayPolicy: jetstream.ReplayInstantPolicy,
 		RateLimit:    0,
 		//		SampleFrequency    string
-		MaxWaiting:    1,
-		MaxAckPending: natsConf.Batch,
+		MaxWaiting:    natsConf.MaxWaitingPulls,
+		MaxAckPending: natsConf.MaxAckPending,
 		HeadersOnly:   false,
 		//MaxRequestBatch: 100,
 		//	MaxRequestExpires  time.Duration

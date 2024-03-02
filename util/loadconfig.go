@@ -11,7 +11,7 @@ import (
 )
 
 // CCConfigPath define o caminho onde está o arquivo de configuração
-const CCConfigPath = "/etc/nats_pub.conf"
+const CCConfigPath = "./etc/nats.conf"
 
 // DebugType indica se o flag de debug está ligado ou não
 type DebugType struct {
@@ -33,6 +33,9 @@ type NatsConfType struct {
 	Timeout         time.Duration
 	Batch           int
 	DoubleAck       bool
+	ErrorRate       int
+	DelayRedelivery time.Duration
+	MaxWaitingPulls int
 }
 
 // MysqlConfType tem a estrutura da configuração do banco de dados
@@ -74,6 +77,9 @@ func LoadConfig(configFileName string) error {
 	NatsConfig.Replica = int(loadSafeInt64Node(conf.Get("nats.replica")))
 	NatsConfig.Batch = int(loadSafeInt64Node(conf.Get("nats.batch")))
 	NatsConfig.DoubleAck = loadSafeBoolNode(conf.Get("nats.double_ack"))
+	NatsConfig.ErrorRate = int(loadSafeInt64Node(conf.Get("nats.error_rate")))
+	NatsConfig.MaxAckPending = int(loadSafeInt64Node(conf.Get("nats.max_ack_pending")))
+	NatsConfig.MaxWaitingPulls = int(loadSafeInt64Node(conf.Get("nats.max_waiting_pulls")))
 
 	strtime := loadSafeStringNode(conf.Get("nats.sub_deliverytime"))
 	if len(strtime) > 0 {
@@ -82,6 +88,16 @@ func LoadConfig(configFileName string) error {
 			NatsConfig.SubDeliveryTime = nil
 		} else {
 			NatsConfig.SubDeliveryTime = &t
+		}
+	}
+
+	strtime = loadSafeStringNode(conf.Get("nats.delay_redelivery"))
+	if len(strtime) > 0 {
+		if t, err := time.ParseDuration(strtime); err != nil {
+			log.Println("Invalid redelivery delay time, assuming 20s")
+			NatsConfig.DelayRedelivery = 20 * time.Second
+		} else {
+			NatsConfig.DelayRedelivery = t
 		}
 	}
 
