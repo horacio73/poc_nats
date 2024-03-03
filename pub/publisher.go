@@ -26,7 +26,7 @@ const (
 	ccQryToken      string = "token"
 	ccQryFluxo      string = "fluxo"
 	ccQryVersao     string = "versao"
-	ccQryVelocidade string = "velocidade"
+	ccQryVelocidade string = "vel"
 	ccQryTempoPos   string = "tempo_pos"
 	ccQryDataHora   string = "data_hora"
 	ccQrySource     string = "source"
@@ -57,7 +57,7 @@ func processStreamData(c *fiber.Ctx) error {
 	msg := getQueryData(c)
 	chStreamProcess <- msg
 
-	c.SendString("ok")
+	c.SendString("{\"result\":\"ok\"}")
 	return nil
 }
 

@@ -2,7 +2,7 @@
 
 Esta prova de conceito tem como objetivo explorar as capacidades da plataforma NATS no âmbito da persistência, garantia de entrega e time travel das mensagens.  Mais sobre o NATS na página oficial: https://nats.io/
 
-Foram criadas na linguagem Go, programas separados para publicar mensagens e consumi-las do broker, contidos respectivamente nas pastas "pub" e "sub".  O pacote "util" é um pacote de apoio, usado por ambos.
+Foram criadas na linguagem Go, programas separados para publicar mensagens e consumi-las do broker, contidos respectivamente nas pastas "pub" e "sub".  O pacote "util" é um pacote de apoio, usado por ambos.  A pasta "test" contém um programa que permite fazer testes em massa no ambiente.
 
 Cada programa tem seu próprio arquivo de configuração default nomeado "/etc/nats.conf" (que não precisa passar via linha de comando), embora aceite que se passe como parâmetro de entrada qualquer outro, da seguinte forma:
 
